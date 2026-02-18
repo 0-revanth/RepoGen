@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Register | RepoGen</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(45deg, white, white, #2563eb, white);
+      overflow: hidden;
+    }
+
+    .clicknock-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 300px;
+      font-weight: bold;
+      color: black;
+      opacity: 0.07;
+      z-index: -1;
+    }
+
+    .logo img {
+      position: absolute;
+      height: 8vh;
+      top: 10px;
+      left: 10px;
+    }
+
+    .login {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 12px;
+      background-color: #4CAF50;
+      box-shadow: 8px 5px 10px black;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .login a {
+      text-decoration: none;
+      color: white;
+    }
+
+    .Reg-container {
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 10px;
+      padding: 30px;
+      width: 320px;
+      text-align: center;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    h2 {
+      color: white;
+      margin-bottom: 10px;
+    }
+
+    input {
+      width: 80%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+      transition: 0.3s;
+    }
+
+    input:focus {
+      border-color: #4CAF50;
+      outline: none;
+      transform: translateY(-3px);
+    }
+
+    .name {
+      display: flex;
+      justify-content: space-evenly;
+    }
+
+    .name input {
+      width: 32%;
+    }
+
+    label {
+      color: white;
+      font-weight: 500;
+    }
+
+    .gender {
+      margin: 10px 0;
+    }
+
+    input[type="radio"] {
+      accent-color: green;
+      width: 16px;
+      height: 16px;
+      margin-left: 5px;
+      margin-right: 15px;
+    }
+
+    .btn-Reg {
+      width: 70%;
+      padding: 12px;
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .btn-Reg:hover {
+      background-color: #45a049;
+      transform: translateY(-2px);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="clicknock-text">RepoGen</div>
+
+
+  <div class="logo"><img src="/assets/logo.png" alt="Logo"></div>
+
+  <div class="login">
+    <a href="/login">Login >></a>
+  </div>
+
+  <div class="Reg-container">
+    <h2>User Register</h2>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div
+      style="background: {% if category == 'error' %}#ff4444{% elif category == 'success' %}#4CAF50{% else %}#2196F3{% endif %}; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px;">
+      {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/register">
+
+      <div class="name">
+        <input type="text" name="first_name" id="first_name" placeholder="First name" required>
+        <input type="text" name="last_name" id="last_name" placeholder="Last name" required>
+      </div>
+
+      <input type="email" name="email" id="email" placeholder="Email" required>
+      <input type="text" name="phone" id="phone" placeholder="Phone Number" pattern="[0-9]{10}" required>
+      <input type="text" name="organization_code" id="organization_code" placeholder="Organization Code (from Admin)"
+        required>
+
+      <div class="gender">
+        <label>Male</label><input type="radio" name="gender" value="Male" required>
+        <label>Female</label><input type="radio" name="gender" value="Female" required>
+        <label>Others</label><input type="radio" name="gender" value="Others" required>
+      </div>
+
+      <input type="password" name="password" id="password" placeholder="Enter Password"
+        pattern="(?=.*\d)(?=.*[a-zA-Z]).{8,}" title="Password must be at least 8 characters and contain a number"
+        required>
+      <input type="password" name="repassword" id="repassword" placeholder="Re-Enter Password" required>
+
+      <button type="submit" class="btn-Reg">Register</button>
+
+      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.3);">
+        <p style="color: white; font-size: 12px; margin-bottom: 10px;">Register as Admin?</p>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <a href="/admin/login"
+            style="padding: 8px 12px; background: #764ba2; color: white; text-decoration: none; border-radius: 5px; font-size: 13px;">Admin
+            Login</a>
+          <a href="/admin/register"
+            style="padding: 8px 12px; background: #764ba2; color: white; text-decoration: none; border-radius: 5px; font-size: 13px;">Admin
+            Register</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Client-side password match validation
+    document.querySelector("form").addEventListener("submit", function (e) {
+      const password = document.getElementById("password").value;
+      const repassword = document.getElementById("repassword").value;
+
+      if (password !== repassword) {
+        e.preventDefault();
+        alert("Passwords do not match");
+      }
+    });
+  </script>
+
+</body>
+
+</html>

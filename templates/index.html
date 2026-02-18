@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>RepoGen - Report Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2563eb;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .upload-box {
+            background: white;
+            border: 2px dashed #ddd;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .upload-box.dragover {
+            border-color: #2563eb;
+            background: #f9f9ff;
+        }
+
+        .upload-box h2 {
+            margin-bottom: 10px;
+        }
+
+        .upload-box p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .upload-box input {
+            display: none;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            color: #22c55e;
+            font-weight: bold;
+        }
+
+        .templates {
+            margin: 20px 0;
+        }
+
+        .templates h3 {
+            margin-bottom: 15px;
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .template-card {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 15px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        .template-card:hover {
+            border-color: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        .template-card.selected {
+            border: 2px solid #2563eb;
+            background: #eff6ff;
+        }
+
+        .template-card h4 {
+            margin: 0 0 5px 0;
+        }
+
+        .template-card p {
+            font-size: 12px;
+            color: #666;
+            margin: 0;
+        }
+
+        .action {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: not-allowed;
+            background: #ccc;
+            color: white;
+        }
+
+        button.active {
+            background: #2563eb;
+            cursor: pointer;
+        }
+
+        button.active:hover {
+            background: #1d4ed8;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Profile Icon Styles */
+        .profile-icon {
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb, #4CAF50);
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .profile-icon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Toggle Switch Styles */
+        .toggle-section {
+            margin: 20px 0;
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #2563eb;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-body input {
+            padding: 12px;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .btn-cancel {
+            background: #e5e7eb;
+            color: #333;
+        }
+
+        .btn-cancel:hover {
+            background: #d1d5db;
+        }
+
+        .btn-confirm {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-confirm:hover {
+            background: #1d4ed8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="logo">
+                <img src="/assets/logo.png" alt="RepoGen Logo" style="height: 80px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="color: #333; font-weight: 500; font-size: 16px;">Welcome, {{ current_user.first_name
+                    }}!</span>
+                {% if current_user.is_admin %}
+                <a href="/admin"
+                    style="padding: 8px 16px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600; transition: all 0.3s; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);"
+                    title="Admin Dashboard"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(102, 126, 234, 0.4)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(102, 126, 234, 0.3)'">
+                    👑 Admin
+                </a>
+                {% endif %}
+                <a href="/profile"
+                    style="text-decoration: none; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #4CAF50); color: white; font-weight: bold; font-size: 18px; transition: all 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); overflow: hidden;"
+                    title="View Profile">
+                    {% if current_user.profile_picture %}
+                    <img src="/static/profile_pics/{{ current_user.profile_picture }}" alt="Profile"
+                        style="width: 100%; height: 100%; object-fit: cover;">
+                    {% else %}
+                    {{ current_user.first_name[0] }}{{ current_user.last_name[0] }}
+                    {% endif %}
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+
+        <!-- Upload -->
+        <div class="upload-box" id="uploadBox">
+            <h2>Upload Excel File</h2>
+            <p>Drag & drop or click to select (.xlsx / .xls)</p>
+            <input type="file" id="fileInput" name="excel_files" accept=".xlsx,.xls">
+            <div class="file-name" id="fileName"></div>
+        </div>
+
+        <!-- Templates -->
+        <div class="templates">
+            <h3>Select Template</h3>
+            <div class="template-grid">
+                <div class="template-card" data-template="SQL Injection">
+                    <h4>SQL Injection</h4>
+                    <p>Database vulnerabilities</p>
+                </div>
+                <div class="template-card" data-template="XSS">
+                    <h4>XSS Assessment</h4>
+                    <p>Cross-site scripting</p>
+                </div>
+                <div class="template-card" data-template="Web Security">
+                    <h4>Web Security</h4>
+                    <p>Web app vulnerabilities</p>
+                </div>
+                <div class="template-card" data-template="Network Scan">
+                    <h4>Network Scan</h4>
+                    <p>Network vulnerabilities</p>
+                </div>
+                <div class="template-card" data-template="Malware">
+                    <h4>Malware</h4>
+                    <p>Malware & config issues</p>
+                </div>
+                <div class="template-card" data-template="Custom">
+                    <h4>Custom</h4>
+                    <p>Use your own format</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Password Protection Toggle -->
+        <div class="toggle-section">
+            <div>
+                <h3 style="margin: 0 0 5px 0;">Password Protection</h3>
+                <p style="margin: 0; color: #666; font-size: 14px;">Enable password protection for the PDF report</p>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="passwordToggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <!-- Password Modal -->
+        <div id="passwordModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Set PDF Password</h2>
+                </div>
+                <div class="modal-body">
+                    <input type="password" id="pdfPassword" placeholder="Enter password to protect PDF">
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn btn-cancel" id="cancelBtn">Cancel</button>
+                    <button class="modal-btn btn-confirm" id="confirmBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action -->
+        <div class="action">
+            <button id="generateBtn">Generate Report</button>
+        </div>
+
+    </div>
+
+    <footer>RepoGen © 2025</footer>
+
+    <script>
+        const uploadBox = document.getElementById("uploadBox");
+        const fileInput = document.getElementById("fileInput");
+        const fileName = document.getElementById("fileName");
+        const cards = document.querySelectorAll(".template-card");
+        const generateBtn = document.getElementById("generateBtn");
+        const pdfPassword = document.getElementById("pdfPassword");
+        const passwordToggle = document.getElementById("passwordToggle");
+        const passwordModal = document.getElementById("passwordModal");
+        const cancelBtn = document.getElementById("cancelBtn");
+        const confirmBtn = document.getElementById("confirmBtn");
+
+        let file = null;
+        let template = null;
+        let savedPassword = "";
+
+        /* Password Toggle and Modal Handling */
+        passwordToggle.addEventListener("change", function () {
+            if (this.checked) {
+                // Show modal when toggle is turned on
+                passwordModal.style.display = "block";
+                pdfPassword.value = savedPassword; // Restore previous password if any
+                pdfPassword.focus();
+            } else {
+                // Clear password when toggle is turned off
+                savedPassword = "";
+                pdfPassword.value = "";
+            }
+        });
+
+        // Cancel button - turn off toggle and close modal
+        cancelBtn.addEventListener("click", function () {
+            passwordToggle.checked = false;
+            passwordModal.style.display = "none";
+            savedPassword = "";
+            pdfPassword.value = "";
+        });
+
+        // Confirm button - save password and close modal
+        confirmBtn.addEventListener("click", function () {
+            if (pdfPassword.value.trim() === "") {
+                alert("Please enter a password or click Cancel");
+                return;
+            }
+            savedPassword = pdfPassword.value;
+            passwordModal.style.display = "none";
+        });
+
+        // Close modal when clicking outside of it
+        window.addEventListener("click", function (event) {
+            if (event.target === passwordModal) {
+                passwordToggle.checked = false;
+                passwordModal.style.display = "none";
+                savedPassword = "";
+                pdfPassword.value = "";
+            }
+        });
+
+        // Allow Enter key to confirm password
+        pdfPassword.addEventListener("keypress", function (event) {
+            if (event.key === "Enter") {
+                confirmBtn.click();
+            }
+        });
+
+        /* Upload handling */
+        uploadBox.addEventListener("click", () => fileInput.click());
+
+        uploadBox.addEventListener("dragover", e => {
+            e.preventDefault();
+            uploadBox.classList.add("dragover");
+        });
+
+        uploadBox.addEventListener("dragleave", () => {
+            uploadBox.classList.remove("dragover");
+        });
+
+        uploadBox.addEventListener("drop", e => {
+            e.preventDefault();
+            uploadBox.classList.remove("dragover");
+            file = e.dataTransfer.files[0];
+            fileName.textContent = file.name;
+            checkReady();
+        });
+
+        fileInput.addEventListener("change", () => {
+            file = fileInput.files[0];
+            fileName.textContent = file.name;
+            checkReady();
+        });
+
+        /* Template selection */
+        cards.forEach(card => {
+            card.addEventListener("click", () => {
+                cards.forEach(c => c.classList.remove("selected"));
+                card.classList.add("selected");
+                template = card.dataset.template;
+                checkReady();
+            });
+        });
+
+        /* Enable button */
+        function checkReady() {
+            if (file && template) {
+                generateBtn.classList.add("active");
+                generateBtn.disabled = false;
+            }
+        }
+
+        /* Generate PDF */
+        generateBtn.addEventListener("click", async () => {
+            if (!file || !template) return;
+
+            generateBtn.textContent = "Generating...";
+
+            const formData = new FormData();
+            formData.append("excel_files", file);   // MUST MATCH FLASK
+            formData.append("project_name", template);
+            formData.append("password", savedPassword); // Use saved password from modal
+
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error("Server error");
+                }
+
+                const type = response.headers.get("content-type");
+                if (!type || !type.includes("application/pdf")) {
+                    throw new Error("Invalid PDF response");
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "RepoGen_Report.pdf";
+                a.click();
+
+                URL.revokeObjectURL(url);
+
+            } catch (e) {
+                alert("Error: " + e.message);
+            }
+
+            generateBtn.textContent = "Generate Report";
+        });
+    </script>
+
+</body>
+
+</html>

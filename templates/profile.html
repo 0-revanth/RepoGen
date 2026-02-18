@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | RepoGen</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2563eb;
+        }
+
+        .back-btn {
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: 0.3s;
+        }
+
+        .back-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .profile-card {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 30px;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb, #4CAF50);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: white;
+            font-weight: bold;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .btn-edit {
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: 0.3s;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .btn-edit:hover {
+            background: #1d4ed8;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .profile-email {
+            font-size: 16px;
+            color: #6b7280;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            color: #1f2937;
+            font-weight: 500;
+        }
+
+        .logout-section {
+            padding-top: 30px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .btn-logout {
+            width: 100%;
+            padding: 14px;
+            background: #ef4444;
+            border: none;
+            color: white;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-weight: 600;
+            text-decoration: none;
+            display: block;
+            text-align: center;
+        }
+
+        .btn-logout:hover {
+            background: #dc2626;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="/" style="text-decoration: none;">
+                <img src="/assets/logo.png" alt="RepoGen Logo" style="height: 80px;">
+            </a>
+            <a href="/" class="back-btn">← Back to Dashboard</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div
+            style="background: {% if category == 'error' %}#fee2e2; color: #991b1b; border: 1px solid #fca5a5{% elif category == 'success' %}#d1fae5; color: #065f46; border: 1px solid #6ee7b7{% else %}#dbeafe; color: #1e40af; border: 1px solid #93c5fd{% endif %}; padding: 12px 20px; border-radius: 6px; margin-bottom: 20px; font-size: 14px;">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    {% if user.profile_picture %}
+                    <img src="/static/profile_pics/{{ user.profile_picture }}" alt="Profile Picture"
+                        style="width: 100%; height: 100%; object-fit: cover;">
+                    {% else %}
+                    {{ user.first_name[0] }}{{ user.last_name[0] }}
+                    {% endif %}
+                </div>
+                <div class="profile-info">
+                    <div class="profile-name">{{ user.first_name }} {{ user.last_name }}</div>
+                    <div class="profile-email">{{ user.email }}</div>
+                </div>
+            </div>
+
+            <a href="/edit_profile" class="btn-edit">✏️ Edit Profile</a>
+
+            <div class="details-grid">
+                <div class="detail-item">
+                    <span class="detail-label">📧 Email Address</span>
+                    <span class="detail-value">{{ user.email }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">📱 Phone Number</span>
+                    <span class="detail-value">{{ user.phone }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">👤 Gender</span>
+                    <span class="detail-value">{{ user.gender }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">📅 Member Since</span>
+                    <span class="detail-value">{{ user.created_at.strftime('%B %d, %Y') }}</span>
+                </div>
+            </div>
+
+            <div class="logout-section">
+                <a href="/logout" class="btn-logout">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>RepoGen © 2025</footer>
+
+</body>
+
+</html>

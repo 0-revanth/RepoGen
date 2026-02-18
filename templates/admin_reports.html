@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Logs | RepoGen Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            height: 50px;
+        }
+
+        .back-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            background: #5568d3;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 25px 30px;
+            background: white;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            width: 300px;
+            font-size: 14px;
+        }
+
+        .search-btn {
+            padding: 10px 20px;
+            background: #764ba2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f8fafc;
+            padding: 16px 20px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #334155;
+            vertical-align: middle;
+        }
+
+        tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .report-code {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #4f46e5;
+            background: #eef2ff;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <a href="/admin" style="text-decoration: none; font-size: 20px; font-weight: bold; color: #333;">
+                👑 Admin Dashboard
+            </a>
+            <span style="color: #ccc;">/</span>
+            <span style="color: #666; font-weight: 500;">Report Logs</span>
+        </div>
+        <a href="/admin" class="back-btn">← Back to Dashboard</a>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    📊 Report Activity Log
+                </div>
+                <form class="search-box" action="/admin/reports" method="GET">
+                    <input type="text" name="q" class="search-input" placeholder="Search by Report Code or User..."
+                        value="{{ request.args.get('q', '') }}">
+                    <button type="submit" class="search-btn">Search</button>
+                    {% if request.args.get('q') %}
+                    <a href="/admin/reports"
+                        style="padding: 10px; color: #666; text-decoration: none; display: flex; align-items: center;">✕</a>
+                    {% endif %}
+                </form>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Report Code</th>
+                        <th>Date Generated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if logs %}
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <div class="user-info">
+                                <div class="avatar">
+                                    {{ log.user.first_name[0] }}{{ log.user.last_name[0] }}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600;">{{ log.user.first_name }} {{ log.user.last_name }}
+                                    </div>
+                                    <div style="font-size: 12px; color: #64748b;">{{ log.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="report-code">{{ log.report_code }}</span>
+                        </td>
+                        <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="3">
+                            <div class="no-data">
+                                <h3>No reports found</h3>
+                                <p>Try adjusting your search criteria</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+
+</html>

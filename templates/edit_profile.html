@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile | RepoGen</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2563eb;
+        }
+
+        .back-btn {
+            padding: 10px 20px;
+            background: #6b7280;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: 0.3s;
+        }
+
+        .back-btn:hover {
+            background: #4b5563;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .edit-card {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 24px;
+            color: #1f2937;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .profile-pic-section {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .current-pic {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            background: linear-gradient(135deg, #2563eb, #4CAF50);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: white;
+            font-weight: bold;
+            overflow: hidden;
+        }
+
+        .current-pic img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"],
+        input[type="tel"],
+        input[type="file"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="tel"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        input[type="file"] {
+            padding: 10px;
+        }
+
+        .file-info {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-save {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-save:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-cancel {
+            background: #e5e7eb;
+            color: #374151;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-cancel:hover {
+            background: #d1d5db;
+        }
+
+        .flash-message {
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .flash-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .flash-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="/" style="text-decoration: none;">
+                <img src="/assets/logo.png" alt="RepoGen Logo" style="height: 80px;">
+            </a>
+            <a href="/profile" class="back-btn">← Back to Profile</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="edit-card">
+            <h2>Edit Profile</h2>
+
+            <form method="POST" enctype="multipart/form-data">
+                <!-- Profile Picture Section -->
+                <div class="profile-pic-section">
+                    <div class="current-pic">
+                        {% if user.profile_picture %}
+                        <img src="/static/profile_pics/{{ user.profile_picture }}" alt="Profile Picture">
+                        {% else %}
+                        {{ user.first_name[0] }}{{ user.last_name[0] }}
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label for="profile_picture">Change Profile Picture</label>
+                        <input type="file" id="profile_picture" name="profile_picture"
+                            accept="image/png, image/jpeg, image/jpg, image/gif">
+                        <p class="file-info">Allowed: PNG, JPG, JPEG, GIF (Max 5MB)</p>
+                    </div>
+                </div>
+
+                <!-- Name Fields -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first_name">First Name</label>
+                        <input type="text" id="first_name" name="first_name" value="{{ user.first_name }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name">Last Name</label>
+                        <input type="text" id="last_name" name="last_name" value="{{ user.last_name }}" required>
+                    </div>
+                </div>
+
+                <!-- Phone -->
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" name="phone" value="{{ user.phone }}" pattern="[0-9]{10}" required>
+                </div>
+
+                <!-- Gender -->
+                <div class="form-group">
+                    <label for="gender">Gender</label>
+                    <select id="gender" name="gender" required>
+                        <option value="Male" {% if user.gender=='Male' %}selected{% endif %}>Male</option>
+                        <option value="Female" {% if user.gender=='Female' %}selected{% endif %}>Female</option>
+                        <option value="Others" {% if user.gender=='Others' %}selected{% endif %}>Others</option>
+                    </select>
+                </div>
+
+                <!-- Email (Read-only) -->
+                <div class="form-group">
+                    <label for="email">Email Address (Cannot be changed)</label>
+                    <input type="text" id="email" value="{{ user.email }}" disabled
+                        style="background: #f9fafb; color: #6b7280;">
+                </div>
+
+                <!-- Buttons -->
+                <div class="button-group">
+                    <a href="/profile" class="btn btn-cancel">Cancel</a>
+                    <button type="submit" class="btn btn-save">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</body>
+
+</html>
