@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <title>RepoGen - Report Generator</title>
+    <!-- SheetJS for client-side Excel parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -392,9 +394,12 @@
                     <h4>Malware</h4>
                     <p>Malware & config issues</p>
                 </div>
-                <div class="template-card" data-template="Custom">
-                    <h4>Custom</h4>
-                    <p>Use your own format</p>
+                <div class="template-card" data-template="Custom" id="customCard"
+                    style="border: 2px dashed #2563eb; background: #eff6ff; position: relative;">
+                    <h4 style="color: #1e40af;">✍️ Custom</h4>
+                    <p>Enter data manually</p>
+                    <span
+                        style="position:absolute;top:8px;right:10px;font-size:10px;background:#2563eb;color:white;border-radius:4px;padding:2px 6px;">NEW</span>
                 </div>
             </div>
         </div>
@@ -501,6 +506,26 @@
             }
         });
 
+        /* ── Parse XL and cache in sessionStorage for Custom Template carry-over ── */
+        function parseAndStoreXL(selectedFile) {
+            if (!selectedFile) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+                    sessionStorage.setItem('xl_vuln_data', JSON.stringify(rows));
+                    sessionStorage.setItem('xl_file_name', selectedFile.name);
+                } catch (err) {
+                    console.warn('XL parse warning:', err);
+                    sessionStorage.removeItem('xl_vuln_data');
+                }
+            };
+            reader.readAsArrayBuffer(selectedFile);
+        }
+
         /* Upload handling */
         uploadBox.addEventListener("click", () => fileInput.click());
 
@@ -518,13 +543,21 @@
             uploadBox.classList.remove("dragover");
             file = e.dataTransfer.files[0];
             fileName.textContent = file.name;
+            parseAndStoreXL(file);
             checkReady();
         });
 
         fileInput.addEventListener("change", () => {
             file = fileInput.files[0];
             fileName.textContent = file.name;
+            parseAndStoreXL(file);
             checkReady();
+        });
+
+        /* Custom card — navigate to custom template (XL data already in sessionStorage) */
+        document.getElementById('customCard').addEventListener('click', function () {
+            // If XL data is available in sessionStorage, it will auto-load on custom template page
+            window.location.href = '/custom_template';
         });
 
         /* Template selection */
@@ -574,9 +607,14 @@
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
 
+                // Read server filename (contains report code) from Content-Disposition header
+                const disposition = response.headers.get("Content-Disposition") || "";
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                const serverFilename = match ? match[1].replace(/['"]/g, "") : "RepoGen_Report.pdf";
+
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = "RepoGen_Report.pdf";
+                a.download = serverFilename;
                 a.click();
 
                 URL.revokeObjectURL(url);

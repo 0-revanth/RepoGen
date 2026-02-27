@@ -421,12 +421,21 @@ def upload():
     db.session.commit()
 
     # Generate PDF with the report code as watermark
-    pdf_buffer = generate_pdf_report(project_name, vulnerabilities, severity_count, password, report_code)
+    # Auto-populate report_info from the logged-in user's profile
+    report_info = {
+        "prepared_by":  f"{current_user.first_name} {current_user.last_name}",
+        "prepared_for": current_user.organization_name or current_user.organization_code or "",
+        "scope":        "",
+        "version":      "1.0",
+        "report_date":  datetime.now().strftime("%B %d, %Y"),
+    }
+    pdf_buffer = generate_pdf_report(project_name, vulnerabilities, severity_count, password, report_code, report_info=report_info)
 
+    safe_name = project_name.replace(" ", "_")
     return send_file(
         pdf_buffer,
         as_attachment=True,
-        download_name=f"{project_name}_{report_code}_report.pdf",
+        download_name=f"{safe_name}_{report_code}_report.pdf",
         mimetype="application/pdf"
     )
 
@@ -530,10 +539,11 @@ def generate_custom():
 
     pdf_buffer = generate_pdf_report(project_name, vulnerabilities, severity_count, password, report_code, accent_color, report_style, report_info=report_info)
 
+    safe_name = project_name.replace(" ", "_")
     return send_file(
         pdf_buffer,
         as_attachment=True,
-        download_name=f"{project_name}_{report_code}_report.pdf",
+        download_name=f"{safe_name}_{report_code}_report.pdf",
         mimetype="application/pdf"
     )
 
