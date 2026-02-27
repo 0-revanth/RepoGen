@@ -426,9 +426,117 @@ def upload():
     return send_file(
         pdf_buffer,
         as_attachment=True,
-        download_name=f"{project_name}_report.pdf",
+        download_name=f"{project_name}_{report_code}_report.pdf",
         mimetype="application/pdf"
     )
+
+# ==================== CUSTOM TEMPLATE ROUTES ====================
+
+@app.route("/custom_template")
+@login_required
+def custom_template():
+    return render_template("custom_template.html")
+
+
+@app.route("/generate_custom", methods=["POST"])
+@login_required
+def generate_custom():
+    project_name = request.form.get("project_name", "Custom Security Report").strip()
+    password = request.form.get("password", "").strip() or None
+    accent_color = request.form.get("accent_color", "#1976d2").strip()
+    report_style = request.form.get("report_style", "standard").strip().lower()
+
+    # Extra report-info fields
+    report_info = {
+        "prepared_by":  request.form.get("prepared_by",  "").strip(),
+        "prepared_for": request.form.get("prepared_for", "").strip(),
+        "scope":        request.form.get("scope",        "").strip(),
+        "version":      request.form.get("version",      "").strip(),
+        "report_date":  request.form.get("report_date",  "").strip(),
+    }
+
+    # Collect all vulnerability rows from the multi-value arrays
+    vuln_ids         = request.form.getlist("vuln_id[]")
+    severities       = request.form.getlist("severity[]")
+    cvss_scores      = request.form.getlist("cvss_score[]")
+    cvss_ids         = request.form.getlist("cvss_id[]")
+    categories       = request.form.getlist("category[]")
+    affected_systems = request.form.getlist("affected_systems[]")
+    statuses         = request.form.getlist("status[]")
+    findings_list    = request.form.getlist("findings[]")
+    impacts          = request.form.getlist("impact[]")
+    remediations     = request.form.getlist("remediation[]")
+    affected_comps   = request.form.getlist("affected_component[]")
+    urls             = request.form.getlist("url[]")
+    references       = request.form.getlist("reference[]")
+    query_params     = request.form.getlist("query_param[]")
+    injection_points = request.form.getlist("injection_point[]")
+
+    source_labels    = request.form.getlist("source_label[]")
+
+    vulnerabilities = []
+    severity_count  = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+
+    for i, sev in enumerate(severities):
+        sev = sev.upper().strip()
+        if not sev:  # skip rows where no severity chosen
+            continue
+
+        if sev in severity_count:
+            severity_count[sev] += 1
+
+        def _get(lst, idx, default="N/A"):
+            v = lst[idx].strip() if idx < len(lst) else ""
+            return v if v else default
+
+        vulnerabilities.append({
+            "vuln_id":           _get(vuln_ids,         i),
+            "severity":          sev,
+            "cvss_score":        _get(cvss_scores,      i),
+            "cvss_id":           _get(cvss_ids,         i),
+            "category":          _get(categories,       i),
+            "affected_systems":  _get(affected_systems, i),
+            "status":            _get(statuses,         i, "OPEN").upper(),
+            "findings":          _get(findings_list,    i),
+            "impact":            _get(impacts,          i),
+            "remediation":       _get(remediations,     i),
+            "affected_component":_get(affected_comps,   i),
+            "url":               _get(urls,             i),
+            "reference":         _get(references,       i),
+            "query_param":       _get(query_params,     i),
+            "injection_point":   _get(injection_points, i),
+            "source_label":      source_labels[i].strip() if i < len(source_labels) else "",
+        })
+
+    if not vulnerabilities:
+        flash('Please add at least one vulnerability with a severity.', 'error')
+        return redirect(url_for('custom_template'))
+
+    # Generate unique report code (same logic as /upload)
+    org_prefix = current_user.organization_code.split('-')[0] if current_user.organization_code else "REP"
+    timestamp_str = datetime.now().strftime("%y%m%d")
+    random_suffix = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+    report_code = f"{org_prefix}-{timestamp_str}-{random_suffix}"
+
+    # Log the report
+    new_log = ReportLog(
+        user_id=current_user.id,
+        organization_code=current_user.organization_code if current_user.organization_code else "UNKNOWN",
+        report_code=report_code,
+        project_name=project_name
+    )
+    db.session.add(new_log)
+    db.session.commit()
+
+    pdf_buffer = generate_pdf_report(project_name, vulnerabilities, severity_count, password, report_code, accent_color, report_style, report_info=report_info)
+
+    return send_file(
+        pdf_buffer,
+        as_attachment=True,
+        download_name=f"{project_name}_{report_code}_report.pdf",
+        mimetype="application/pdf"
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)

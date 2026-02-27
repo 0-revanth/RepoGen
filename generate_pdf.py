@@ -29,9 +29,15 @@ class TOCEntry(Flowable):
     def split(self, availWidth, availHeight):
         return []
 
-def generate_pdf_report(project_name, vulnerabilities, severity_count, password=None, report_code="Repogen"):
+def generate_pdf_report(project_name, vulnerabilities, severity_count, password=None, report_code="Repogen", accent_color="#1976d2", report_style="standard", report_info=None):
     buffer = BytesIO()
-    
+
+    # Resolve accent color – fall back to a safe default if invalid
+    try:
+        accent = colors.HexColor(accent_color if accent_color and accent_color.startswith('#') else "#1976d2")
+    except Exception:
+        accent = colors.HexColor("#1976d2")
+
     #sorting
     severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
     
@@ -122,9 +128,39 @@ def generate_pdf_report(project_name, vulnerabilities, severity_count, password=
         canvas.drawRightString(560, 20, f"Page {doc.page}")
 
     # ================= PAGE 1: TITLE =================
-    # Add Date at top right
+    # Add Report Code banner + Date on the same header row
     today_date = datetime.now().strftime("%B %d, %Y")
-    story.append(Paragraph(today_date, ParagraphStyle(name="TopRightDate", parent=styles['Normal'], alignment=TA_RIGHT, fontSize=10)))
+    header_row = Table(
+        [[
+            Paragraph(
+                f"<b>Doc Code: {report_code}</b>",
+                ParagraphStyle(
+                    name="DocCodeStyle",
+                    parent=styles["Normal"],
+                    fontSize=10,
+                    textColor=colors.white,
+                )
+            ),
+            Paragraph(
+                today_date,
+                ParagraphStyle(
+                    name="TopRightDate2",
+                    parent=styles["Normal"],
+                    alignment=TA_RIGHT,
+                    fontSize=10,
+                )
+            ),
+        ]],
+        colWidths=[250, 250],
+        rowHeights=28,
+    )
+    header_row.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#1565c0")),
+        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+        ("PADDING",    (0, 0), (-1, -1), 6),
+        ("ALIGN",      (1, 0), (1, 0), "RIGHT"),
+    ]))
+    story.append(header_row)
     story.append(Spacer(1, 20))
 
     # Add logo
@@ -136,9 +172,38 @@ def generate_pdf_report(project_name, vulnerabilities, severity_count, password=
         story.append(Spacer(1, 30))
     
     story.append(Paragraph(project_name, styles["Title"]))
-    story.append(Spacer(1, 30))
-    
-    # Add metadata with generation info and vulnerability count
+    story.append(Spacer(1, 20))
+
+    # ── Report Info metadata table (prepared_by, prepared_for, scope, version, date) ──
+    if report_info:
+        field_labels = [
+            ("Date",          report_info.get("report_date",  "").strip()),
+            ("Prepared By",   report_info.get("prepared_by",  "").strip()),
+            ("Prepared For",  report_info.get("prepared_for", "").strip()),
+            ("Scope",         report_info.get("scope",        "").strip()),
+            ("Version",       report_info.get("version",      "").strip()),
+        ]
+        # Only include rows that have a value
+        info_rows = [[Paragraph(f"<b>{lbl}</b>", styles["Normal"]),
+                      Paragraph(val, styles["Normal"])]
+                     for lbl, val in field_labels if val]
+        if info_rows:
+            info_table = Table(info_rows, colWidths=[110, 360])
+            info_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f0f7ff")),
+                ("GRID",       (0, 0), (-1, -1), 0.5,  colors.HexColor("#cbd5e1")),
+                ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+                ("PADDING",    (0, 0), (-1, -1), 8),
+                ("FONTNAME",   (0, 0), (0, -1),  "Helvetica-Bold"),
+                ("FONTSIZE",   (0, 0), (-1, -1), 10),
+            ]))
+            info_table.hAlign = "CENTER"
+            story.append(info_table)
+            story.append(Spacer(1, 10))
+
+    story.append(Spacer(1, 10))
+
+    # Report ID / total vulnerabilities line
     meta = Paragraph(
         f"Report ID: {report_code} | "
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
@@ -146,8 +211,6 @@ def generate_pdf_report(project_name, vulnerabilities, severity_count, password=
         styles["Normal"]
     )
     story.append(meta)
-    story.append(Spacer(1, 20))
-    
     story.append(Spacer(1, 12))
     story.append(PageBreak())
 
@@ -158,64 +221,73 @@ def generate_pdf_report(project_name, vulnerabilities, severity_count, password=
     story.append(PageBreak())
 
 
-    # ================= PAGE 3: PROBLEM STATEMENT =================
-    addPara("1. Problem Statement", styles["H1"], level=0)
-    story.append(Spacer(1, 20))
-    PROBLEM_STATEMENT_TEXT = """In many organizations, the creation of cybersecurity assessment reports relies heavily on manual processes. Vulnerability information is collected from multiple Excel sheets, and proof-of-concept (PoC) details are added manually to the reports. This approach makes the reporting process repetitive, time-consuming, and inefficient.
-<br/><br/>
-Manual reporting often leads to inconsistencies in report formats and structures, resulting in variations in quality. It is also prone to errors such as redundant vulnerability findings, incorrect risk classification, and missing or incomplete evidence. These issues can reduce the reliability and usefulness of cybersecurity reports.
-<br/><br/>
+
+    # =========================================================
+    # SECTION VISIBILITY BY STYLE:
+    #   standard  → all sections
+    #   executive → exec summary + risk matrix + conclusion only
+    #   technical → vuln list + detailed findings only
+    # =========================================================
+
+    if report_style in ("standard", "executive"):
+        # ================= PAGE 3: PROBLEM STATEMENT =================
+        if report_style == "standard":
+            addPara("1. Problem Statement", styles["H1"], level=0)
+            story.append(Spacer(1, 20))
+            PROBLEM_STATEMENT_TEXT = """In many organizations, the creation of cybersecurity assessment reports relies heavily on manual processes. Vulnerability information is collected from multiple Excel sheets, and proof-of-concept (PoC) details are added manually to the reports. This approach makes the reporting process repetitive, time-consuming, and inefficient.<br/><br/>
+Manual reporting often leads to inconsistencies in report formats and structures, resulting in variations in quality. It is also prone to errors such as redundant vulnerability findings, incorrect risk classification, and missing or incomplete evidence. These issues can reduce the reliability and usefulness of cybersecurity reports.<br/><br/>
 Additionally, manual report preparation makes it difficult to scale or adapt the process when there are changes in vulnerability data or reporting formats. The lack of automation delays report delivery and negatively impacts productivity. Therefore, there is a clear need for a centralized and automated cybersecurity reporting system that ensures accuracy, consistency, scalability, and efficient report generation."""
-    story.append(Paragraph(PROBLEM_STATEMENT_TEXT, styles["Body"]))
-    story.append(Spacer(1, 20))
-    story.append(PageBreak())
-    
-    # 1.1 Introduction
-    addPara("1.1 Introduction", styles["H2"], level=1)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(
-        "This security assessment report documents the findings from a comprehensive evaluation "
-        "of the target application's security posture. The assessment was designed to identify "
-        "vulnerabilities, misconfigurations, and potential security risks.",
-        styles["Body"]
-    ))
-    story.append(Spacer(1, 15))
-    
-    # 1.2 Scope
-    addPara("1.2 Scope", styles["H2"], level=1)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(
-        "The scope of this assessment encompasses all components of the target application, "
-        "including web interfaces, APIs, mobile applications, and underlying infrastructure. "
-        "Testing was conducted in accordance with the agreed-upon rules of engagement.",
-        styles["Body"]
-    ))
-    story.append(Spacer(1, 15))
-    
-    # 1.3 Objective
-    addPara("1.3 Objective", styles["H2"], level=1)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph(
-        "The primary objective of this assessment is to identify security vulnerabilities and "
-        "provide actionable remediation guidance to enhance the overall security posture of the "
-        "application and protect against potential threats.",
-        styles["Body"]
-    ))
-    story.append(Spacer(1, 15))
-    
-    # 1.4 Executive Summary
-    addPara("1.4 Executive Summary", styles["H2"], level=1)
-    story.append(Spacer(1, 10))
-    EXECUTIVE_SUMMARY_TEXT = """This assessment was conducted to identify security vulnerabilities, configuration weaknesses, and potential exploitation vectors within the target application. The testing process involved a hybrid approach utilizing automated scanning tools and manual exploitation techniques based on the OWASP Top 10 and NIST frameworks.
+            story.append(Paragraph(PROBLEM_STATEMENT_TEXT, styles["Body"]))
+            story.append(Spacer(1, 20))
+            story.append(PageBreak())
+
+            # 1.1 Introduction
+            addPara("1.1 Introduction", styles["H2"], level=1)
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(
+                "This security assessment report documents the findings from a comprehensive evaluation "
+                "of the target application's security posture. The assessment was designed to identify "
+                "vulnerabilities, misconfigurations, and potential security risks.",
+                styles["Body"]
+            ))
+            story.append(Spacer(1, 15))
+
+            # 1.2 Scope
+            addPara("1.2 Scope", styles["H2"], level=1)
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(
+                "The scope of this assessment encompasses all components of the target application, "
+                "including web interfaces, APIs, mobile applications, and underlying infrastructure. "
+                "Testing was conducted in accordance with the agreed-upon rules of engagement.",
+                styles["Body"]
+            ))
+            story.append(Spacer(1, 15))
+
+            # 1.3 Objective
+            addPara("1.3 Objective", styles["H2"], level=1)
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(
+                "The primary objective of this assessment is to identify security vulnerabilities and "
+                "provide actionable remediation guidance to enhance the overall security posture of the "
+                "application and protect against potential threats.",
+                styles["Body"]
+            ))
+            story.append(Spacer(1, 15))
+
+        # 1.4 Executive Summary (both standard AND executive styles)
+        addPara("1.4 Executive Summary" if report_style == "standard" else "Executive Summary", styles["H2"] if report_style == "standard" else styles["H1"], level=1 if report_style == "standard" else 0)
+        story.append(Spacer(1, 10))
+        EXECUTIVE_SUMMARY_TEXT = """This assessment was conducted to identify security vulnerabilities, configuration weaknesses, and potential exploitation vectors within the target application. The testing process involved a hybrid approach utilizing automated scanning tools and manual exploitation techniques based on the OWASP Top 10 and NIST frameworks.
 
 The assessment identified multiple security findings ranging from Critical to Low severity. The most significant risks observed involve improper input validation and access control mechanisms, which could allow unauthorized data access. Immediate remediation is recommended for all High and Critical findings to maintain the confidentiality, integrity, and availability of the system."""
-    story.append(Paragraph(EXECUTIVE_SUMMARY_TEXT, styles["Body"]))
-    story.append(Spacer(1, 15))
-    
-    # 1.5 Methodology
-    addPara("1.5 Methodology", styles["H2"], level=1)
-    story.append(Spacer(1, 10))
-    METHODOLOGY_TEXT = """The security assessment followed a structured methodology aligned with industry best practices:<br/>
+        story.append(Paragraph(EXECUTIVE_SUMMARY_TEXT, styles["Body"]))
+        story.append(Spacer(1, 15))
+
+        if report_style == "standard":
+            # 1.5 Methodology
+            addPara("1.5 Methodology", styles["H2"], level=1)
+            story.append(Spacer(1, 10))
+            METHODOLOGY_TEXT = """The security assessment followed a structured methodology aligned with industry best practices:<br/>
 
 1. Information Gathering: Passive and active reconnaissance to map the application structure.<br/>
 2. Threat Modeling: Identifying potential attack vectors based on business logic.<br/>
@@ -224,13 +296,13 @@ The assessment identified multiple security findings ranging from Critical to Lo
 5. Reporting: Documentation of findings with risk ratings based on the CVSS v3.1 scoring system.<br/>
 
 The assessment adhered to the OWASP Web Security Testing Guide (WSTG) and NIST SP 800-115 standards."""
-    story.append(Paragraph(METHODOLOGY_TEXT, styles["Body"]))
-    story.append(Spacer(1, 15))
-    
-    # 1.6 Testing
-    addPara("1.6 Testing", styles["H2"], level=1)
-    story.append(Spacer(1, 10))
-    TESTING_TYPES_TEXT = """<b>Black Box Testing:</b><br/>
+            story.append(Paragraph(METHODOLOGY_TEXT, styles["Body"]))
+            story.append(Spacer(1, 15))
+
+            # 1.6 Testing
+            addPara("1.6 Testing", styles["H2"], level=1)
+            story.append(Spacer(1, 10))
+            TESTING_TYPES_TEXT = """<b>Black Box Testing:</b><br/>
 The assessment was conducted with zero prior knowledge of the internal infrastructure or source code. The testing team simulated an external attacker approach to identify vulnerabilities exposed to the public internet.<br/><br/>
 
 <b>Gray Box Testing:</b><br/>
@@ -247,52 +319,55 @@ Evaluation of the underlying server and network configurations. This includes po
 
 <b>Mobile Application Security Testing (MAST):</b><br/>
 Analysis of mobile binaries (Android APK / iOS IPA) involving both static analysis (hardcoded secrets, insecure data storage) and dynamic analysis (runtime manipulation, SSL pinning bypass) to ensure the mobile client is secure."""
-    story.append(Paragraph(TESTING_TYPES_TEXT, styles["Body"]))
-    story.append(Spacer(1, 20))
-    story.append(PageBreak())
+            story.append(Paragraph(TESTING_TYPES_TEXT, styles["Body"]))
+            story.append(Spacer(1, 20))
 
-    # ================= PAGE 4: LIST OF VULNERABILITIES =================
-    addPara("2. List of Vulnerabilities", styles["H1"], level=0)
-    story.append(Spacer(1, 15))
+        story.append(PageBreak())
 
-    table_data = [
-        ["ID", "Severity", "CVSS", "Status", "Category"]
-    ]
 
-    for v in vulnerabilities:
-        table_data.append([
-            v["vuln_id"],
-            v["severity"],
-            v["cvss_score"],
-            v["status"],
-            v["category"]
-        ])
+    # Vuln summary table – shown in standard and technical, NOT executive
+    if report_style != "executive":
+        # ================= PAGE 4: LIST OF VULNERABILITIES =================
+        addPara("2. List of Vulnerabilities", styles["H1"], level=0)
+        story.append(Spacer(1, 15))
 
-    table = Table(table_data, colWidths=[60, 80, 60, 70, 180], rowHeights=25)
-    style = [
-        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-        ("BACKGROUND", (0,0), (-1,0), colors.whitesmoke),
-        ("FONT", (0,0), (-1,0), "Helvetica-Bold"),
-        ("ALIGN", (1,1), (-1,-1), "CENTER"),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-    ]
+        table_data = [
+            ["ID", "Severity", "CVSS", "Status", "Category"]
+        ]
 
-    for i, v in enumerate(vulnerabilities, 1):
-        SEVERITY_COLORS = {
-            "CRITICAL": colors.HexColor("#bf0000"),
-            "HIGH":     colors.HexColor("#ff0000"),
-            "MEDIUM":   colors.HexColor("#ffc000"),
-            "LOW":      colors.HexColor("#00b050"),
-        }
+        for v in vulnerabilities:
+            table_data.append([
+                v["vuln_id"],
+                v["severity"],
+                v["cvss_score"],
+                v["status"],
+                v["category"]
+            ])
 
-        bg = SEVERITY_COLORS.get(v["severity"], colors.white)
+        table = Table(table_data, colWidths=[60, 80, 60, 70, 180], rowHeights=25)
+        style = [
+            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+            ("BACKGROUND", (0,0), (-1,0), colors.whitesmoke),
+            ("FONT", (0,0), (-1,0), "Helvetica-Bold"),
+            ("ALIGN", (1,1), (-1,-1), "CENTER"),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ]
 
-        style.append(("BACKGROUND", (1,i), (1,i), bg))
+        for i, v in enumerate(vulnerabilities, 1):
+            SEVERITY_COLORS = {
+                "CRITICAL": colors.HexColor("#bf0000"),
+                "HIGH":     colors.HexColor("#ff0000"),
+                "MEDIUM":   colors.HexColor("#ffc000"),
+                "LOW":      colors.HexColor("#00b050"),
+            }
+            bg = SEVERITY_COLORS.get(v["severity"], colors.white)
+            style.append(("BACKGROUND", (1,i), (1,i), bg))
 
-    table.setStyle(TableStyle(style))
-    story.append(table)
-    story.append(Spacer(1, 20))
-    story.append(PageBreak())
+        table.setStyle(TableStyle(style))
+        story.append(table)
+        story.append(Spacer(1, 20))
+        story.append(PageBreak())
+
 
     # ================= PAGE 5: RISK MATRIX =================
     addPara("3. Risk Matrix", styles["H1"], level=0)
@@ -366,220 +441,233 @@ Analysis of mobile binaries (Android APK / iOS IPA) involving both static analys
                  ParagraphStyle(name="Caption", parent=styles["Normal"], alignment=1, fontSize=10, spaceBefore=10)))
     story.append(PageBreak())
 
-    # ================= TECHNICAL FINDINGS =================
-    addPara("4. Technical Findings", styles["H1"], level=0)
-    story.append(Spacer(1, 10))
-    
-    for v in sorted_vulnerabilities:
-        addPara(f"Vulnerability ID: {v['vuln_id']}", styles["H1"], level=1)
-        story.append(Spacer(1, 15))
+    # Technical Findings – standard and technical only (NOT executive)
+    if report_style != "executive":
+        # ================= TECHNICAL FINDINGS =================
+        addPara("4. Technical Findings", styles["H1"], level=0)
+        story.append(Spacer(1, 10))
 
-        meta = Table([
-            ["Severity", v["severity"], "Status", v["status"]],
-            ["CVSS Score", v["cvss_score"], "CVSS ID", v["cvss_id"]],
-            ["Category", v["category"], "Affected Systems", v["affected_systems"]],
-        ], colWidths=[90, 150, 120, 150], rowHeights=28)
+        # ── Group vulnerabilities by source_label (preserving insertion order) ──
+        from collections import OrderedDict
+        sections = OrderedDict()
+        for v in vulnerabilities:
+            lbl = v.get("source_label", "").strip() or "General"
+            sections.setdefault(lbl, []).append(v)
 
-        meta.setStyle(TableStyle([
-            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-            ("BACKGROUND", (1,0), (1,0),
-             colors.HexColor("#d32f2f") if v["severity"]=="CRITICAL"
-             else colors.HexColor("#f57c00") if v["severity"]=="HIGH"
-             else colors.HexColor("#1976d2")
-             if v["severity"]=="MEDIUM" else colors.HexColor("#388e3c")),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("FONT", (0,0), (0,-1), "Helvetica-Bold"),
+        # Sort each group by severity before rendering
+        severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+        multi_section = len(sections) > 1  # only show sub-headers when >1 file
+
+        for section_label, section_vulns in sections.items():
+            # ── Section sub-heading (only when multiple files) ──
+            if multi_section:
+                section_title = f"📄 {section_label}"
+                story.append(Spacer(1, 8))
+                # Styled banner row
+                banner_table = Table([[Paragraph(
+                    f"<b>{section_title}</b>",
+                    ParagraphStyle(name=f"SecBanner_{section_label[:20]}",
+                                   parent=styles["Normal"],
+                                   fontSize=13, textColor=colors.white)
+                )]], colWidths=[490], rowHeights=28)
+                banner_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#1e40af")),
+                    ("PADDING",    (0, 0), (-1, -1), 8),
+                    ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+                ]))
+                story.append(banner_table)
+                story.append(Spacer(1, 12))
+
+            # Sort vulns in this section by severity
+            sorted_section = sorted(section_vulns,
+                key=lambda x: severity_order.get(x.get("severity", "LOW"), 4))
+
+            for v in sorted_section:
+                addPara(f"Vulnerability ID: {v['vuln_id']}", styles["H1"], level=1)
+                story.append(Spacer(1, 15))
+
+                meta = Table([
+                    ["Severity", v["severity"], "Status", v["status"]],
+                    ["CVSS Score", v["cvss_score"], "CVSS ID", v["cvss_id"]],
+                    ["Category", v["category"], "Affected Systems", v["affected_systems"]],
+                ], colWidths=[90, 150, 120, 150], rowHeights=28)
+
+                meta.setStyle(TableStyle([
+                    ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+                    ("BACKGROUND", (1,0), (1,0),
+                     colors.HexColor("#d32f2f") if v["severity"]=="CRITICAL"
+                     else colors.HexColor("#f57c00") if v["severity"]=="HIGH"
+                     else colors.HexColor("#1976d2")
+                     if v["severity"]=="MEDIUM" else colors.HexColor("#388e3c")),
+                    ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                    ("FONT", (0,0), (0,-1), "Helvetica-Bold"),
+                ]))
+
+                story.append(meta)
+                story.append(Spacer(1, 20))
+
+                story.append(Paragraph("Findings", styles["H2"]))
+                story.append(Spacer(1, 5))
+                story.append(Paragraph(v["findings"], styles["Body"]))
+                story.append(Spacer(1, 10))
+
+                story.append(Paragraph("Impact", styles["H2"]))
+                story.append(Spacer(1, 5))
+                story.append(Paragraph(v["impact"], styles["Body"]))
+                story.append(Spacer(1, 10))
+
+                story.append(Paragraph("Remediation", styles["H2"]))
+                story.append(Spacer(1, 5))
+                story.append(Paragraph(v["remediation"], styles["Body"]))
+                story.append(Spacer(1, 10))
+
+                story.append(Paragraph("Affected Component", styles["H2"]))
+                story.append(Spacer(1, 5))
+                story.append(Paragraph(v["affected_component"], styles["Body"]))
+                story.append(Spacer(1, 10))
+
+                story.append(Paragraph("URL", styles["H2"]))
+                story.append(Spacer(1, 5))
+                story.append(Paragraph(v["url"], styles["Body"]))
+                story.append(Spacer(1, 10))
+
+                story.append(Paragraph("Reference", styles["H2"]))
+                story.append(Spacer(1, 5))
+                story.append(Paragraph(v["reference"], styles["Body"]))
+                story.append(Spacer(1, 15))
+
+                story.append(PageBreak())
+
+
+    # Appendices – standard only
+    if report_style == "standard":
+        # ================= APPENDIX A =================
+        addPara("5. APPENDIX A", styles["H1"], level=0)
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("OWASP TOP 10 VULNERABILITIES", styles["H2"]))
+        story.append(Spacer(1, 5))
+
+        # OWASP Top 10 Table Data
+        owasp_data = [
+            ["Name", "Description"],
+            ["A01 - Broken Access Control",
+             "Broken access control vulnerabilities occur when a user can access a resource or carry out an action that they should not have permission for. Such failures often result in unauthorized disclosure, alteration, or deletion of data, or the execution of a business operation beyond the user's authorized boundaries."],
+            ["A02 - Cryptographic Failures",
+             "Cryptographic Failure is a vulnerability that occurs when sensitive data is not stored securely. Attackers may steal or modify such weakly protected data to conduct credit card fraud, identity theft, or other crimes."],
+            ["A03 - Injection",
+             "Injection vulnerabilities, like SQL, OS, and LDAP injections, manifest when untrusted data is introduced to an interpreter as a component of a command or query. The malicious data supplied by the attacker can deceive the interpreter into executing unintended commands or gaining access to data without the necessary authorization."],
+            ["A04 - Insecure Design",
+             "Insecure design primarily concerns the vulnerabilities stemming from design and architectural deficiencies, emphasizing the importance of practices such as threat modeling, secure design patterns, and principles. Exploiting insecure design involves attackers conducting threat modeling on software workflows to uncover a wide spectrum of vulnerabilities and weaknesses."],
+            ["A05 - Security Misconfiguration",
+             "Good security requires having a secure configuration defined and deployed for the application, frameworks, application server, web server, database server, and platform. Secure settings should be defined, implemented, and maintained, as defaults are often insecure. Additionally, software should be kept up to date."],
+            ["A06 - Vulnerable and Outdated Components",
+             "Components that are vulnerable or outdated, including libraries, frameworks, and other software modules, typically operate with extensive privileges. Exploiting a vulnerable component can lead to significant data loss or a takeover of the server. Applications that with known vulnerabilities or outdated versions can weaken the overall security of the application, potentially enabling various types of attacks."],
+            ["A07 - Identification and Authentication Failures",
+             "Identification and authentication failures can occur when functions related to a user's identity, authentication, or session management are not implemented correctly or not adequately protected by an application. Attackers may be able to exploit identification and authentication failures by compromising passwords, keys, session tokens, or exploit other flaws to assume other users' identities."],
+            ["A08 - Software and Data Integrity Failures",
+             "Software and data integrity failures relate to code and infrastructure that does not protect against integrity violations. This can occur when you use software from untrusted sources and repositories or even software that has been tampered with at the source, in transit, or even the endpoint cache. Attackers can exploit this to potentially introduce unauthorized access, malicious code, or system compromise."],
+            ["A09 - Security Logging and Monitoring Failures",
+             "Inadequate logging, monitoring, or reporting of security events, like login attempts, hinders the detection of suspicious activities and substantially increases the chances of an attacker successfully exploiting your application."],
+            ["A10 - Server-Side Request Forgery",
+             "Server-Side Request Forgery (SSRF) is a type of server-side attack that results in the unauthorized exposure of sensitive information from the backend server of an application. In SSRF, the attacker sends malicious requests to an Internet-facing webserver, which then forwards these requests to a backend server located on the internal network, all on behalf of the attacker."]
+        ]
+
+        formatted_owasp_data = []
+        formatted_owasp_data.append([
+            Paragraph("<b>Name</b>", styles["Normal"]),
+            Paragraph("<b>Description</b>", styles["Normal"])
+        ])
+        for row in owasp_data[1:]:
+            formatted_owasp_data.append([
+                Paragraph(row[0], styles["Body"]),
+                Paragraph(row[1], styles["Body"])
+            ])
+
+        owasp_table = Table(formatted_owasp_data, colWidths=[150, 350])
+        owasp_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), accent),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('PADDING', (0,0), (-1,-1), 6),
         ]))
 
-        story.append(meta)
+        story.append(owasp_table)
         story.append(Spacer(1, 20))
-
-        story.append(Paragraph("Findings", styles["H2"]))
-        story.append(Spacer(1, 5))
-        story.append(Paragraph(v["findings"], styles["Body"]))
-        story.append(Spacer(1, 10))
-
-        story.append(Paragraph("Impact", styles["H2"]))
-        story.append(Spacer(1, 5))
-        story.append(Paragraph(v["impact"], styles["Body"]))
-        story.append(Spacer(1, 10))
-
-        story.append(Paragraph("Remediation", styles["H2"]))
-        story.append(Spacer(1, 5))
-        story.append(Paragraph(v["remediation"], styles["Body"]))
-        story.append(Spacer(1, 10))
-
-        story.append(Paragraph("Affected Component", styles["H2"]))
-        story.append(Spacer(1, 5))
-        story.append(Paragraph(v["affected_component"], styles["Body"]))
-        story.append(Spacer(1, 10))
-
-        story.append(Paragraph("URL", styles["H2"]))
-        story.append(Spacer(1, 5))
-        story.append(Paragraph(v["url"], styles["Body"]))
-        story.append(Spacer(1, 10))
-
-        story.append(Paragraph("Reference", styles["H2"]))
-        story.append(Spacer(1, 5))
-        story.append(Paragraph(v["reference"], styles["Body"]))
-        story.append(Spacer(1, 15))
-
         story.append(PageBreak())
 
-    # ================= APPENDIX A =================
-    addPara("5. APPENDIX A", styles["H1"], level=0)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph("OWASP TOP 10 VULNERABILITIES", styles["H2"]))
-    story.append(Spacer(1, 5))
-    
-    # OWASP Top 10 Table Data
-    owasp_data = [
-        ["Name", "Description"],
-        ["A01 - Broken Access Control", 
-         "Broken access control vulnerabilities occur when a user can access a resource or carry out an action that they should not have permission for. Such failures often result in unauthorized disclosure, alteration, or deletion of data, or the execution of a business operation beyond the user's authorized boundaries."],
-        
-        ["A02 - Cryptographic Failures", 
-         "Cryptographic Failure is a vulnerability that occurs when sensitive data is not stored securely. Attackers may steal or modify such weakly protected data to conduct credit card fraud, identity theft, or other crimes."],
-        
-        ["A03 - Injection", 
-         "Injection vulnerabilities, like SQL, OS, and LDAP injections, manifest when untrusted data is introduced to an interpreter as a component of a command or query. The malicious data supplied by the attacker can deceive the interpreter into executing unintended commands or gaining access to data without the necessary authorization."],
-        
-        ["A04 - Insecure Design", 
-         "Insecure design primarily concerns the vulnerabilities stemming from design and architectural deficiencies, emphasizing the importance of practices such as threat modeling, secure design patterns, and principles. Exploiting insecure design involves attackers conducting threat modeling on software workflows to uncover a wide spectrum of vulnerabilities and weaknesses."],
-        
-        ["A05 - Security Misconfiguration", 
-         "Good security requires having a secure configuration defined and deployed for the application, frameworks, application server, web server, database server, and platform. Secure settings should be defined, implemented, and maintained, as defaults are often insecure. Additionally, software should be kept up to date."],
-        
-        ["A06 - Vulnerable and Outdated Components", 
-         "Components that are vulnerable or outdated, including libraries, frameworks, and other software modules, typically operate with extensive privileges. Exploiting a vulnerable component can lead to significant data loss or a takeover of the server. Applications that with known vulnerabilities or outdated versions can weaken the overall security of the application, potentially enabling various types of attacks."],
-        
-        ["A07 - Identification and Authentication Failures", 
-         "Identification and authentication failures can occur when functions related to a user's identity, authentication, or session management are not implemented correctly or not adequately protected by an application. Attackers may be able to exploit identification and authentication failures by compromising passwords, keys, session tokens, or exploit other flaws to assume other users' identities."],
-        
-        ["A08 - Software and Data Integrity Failures", 
-         "Software and data integrity failures relate to code and infrastructure that does not protect against integrity violations. This can occur when you use software from untrusted sources and repositories or even software that has been tampered with at the source, in transit, or even the endpoint cache. Attackers can exploit this to potentially introduce unauthorized access, malicious code, or system compromise."],
-        
-        ["A09 - Security Logging and Monitoring Failures", 
-         "Inadequate logging, monitoring, or reporting of security events, like login attempts, hinders the detection of suspicious activities and substantially increases the chances of an attacker successfully exploiting your application."],
-        
-        ["A10 - Server-Side Request Forgery", 
-         "Server-Side Request Forgery (SSRF) is a type of server-side attack that results in the unauthorized exposure of sensitive information from the backend server of an application. In SSRF, the attacker sends malicious requests to an Internet-facing webserver, which then forwards these requests to a backend server located on the internal network, all on behalf of the attacker."]
-    ]
 
-    # Convert descriptions to Paragraphs for wrapping
-    formatted_owasp_data = []
-    # Header row
-    formatted_owasp_data.append([
-        Paragraph("<b>Name</b>", styles["Normal"]),
-        Paragraph("<b>Description</b>", styles["Normal"])
-    ])
-    
-    # Data rows
-    for row in owasp_data[1:]:
-        formatted_owasp_data.append([
-            Paragraph(row[0], styles["Body"]),
-            Paragraph(row[1], styles["Body"])
-        ])
+        # ================= APPENDIX B =================
+        addPara("6. APPENDIX B", styles["H1"], level=0)
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("<b>Risk calculation</b>", styles["H2"]))
+        story.append(Spacer(1, 10))
 
-    owasp_table = Table(formatted_owasp_data, colWidths=[150, 350])
-    owasp_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1976d2")), # Header Blue
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('PADDING', (0,0), (-1,-1), 6),
-    ]))
-    
-    story.append(owasp_table)
-    story.append(Spacer(1, 20))
-    story.append(PageBreak())
+        severity_definitions = [
+            ["Severity", "CVSS Score", "Description"],
+            ["Critical", "9.0-10.0", "Critical severity findings relate to an issue that can result in severe damage if not addressed immediately by the business."],
+            ["High", "7.0-8.9", "High severity findings relate to an issue that requires prompt attention and high priority by the business."],
+            ["Medium", "4.0-6.9", "Medium severity finding relates to an issue that has the potential to present a serious risk to the business."],
+            ["Low", "0.1-3.9", "Low severity findings contradict security best practices and have minimal impact on the project or business."],
+            ["Informational", "0.0", "Informational findings relate primarily to noncompliance with security best practices or are considered a security feature that would increase the security stance."]
+        ]
 
-    # ================= APPENDIX B =================
-    addPara("6. APPENDIX B", styles["H1"], level=0)
-    story.append(Spacer(1, 10))
-    story.append(Paragraph("<b>Risk calculation</b>", styles["H2"]))
-    story.append(Spacer(1, 10))
-
-    severity_definitions = [
-        ["Severity", "CVSS Score", "Description"],
-        ["Critical", "9.0-10.0", "Critical severity findings relate to an issue that can result in severe damage if not addressed immediately by the business."],
-        ["High", "7.0-8.9", "High severity findings relate to an issue that requires prompt attention and high priority by the business."],
-        ["Medium", "4.0-6.9", "Medium severity finding relates to an issue that has the potential to present a serious risk to the business."],
-        ["Low", "0.1-3.9", "Low severity findings contradict security best practices and have minimal impact on the project or business."],
-        ["Informational", "0.0", "Informational findings relate primarily to noncompliance with security best practices or are considered a security feature that would increase the security stance."]
-    ]
-
-    formatted_severity_data = []
-    # Header
-    formatted_severity_data.append([
-        Paragraph("<b>Severity</b>", styles["Normal"]),
-        Paragraph("<b>CVSS Score</b>", styles["Normal"]),
-        Paragraph("<b>Description</b>", styles["Normal"])
-    ])
-
-    # Data Rows
-    for row in severity_definitions[1:]:
+        formatted_severity_data = []
         formatted_severity_data.append([
-            Paragraph(f"<b>{row[0]}</b>", styles["Body"]), # Bold Severity Name
-            Paragraph(row[1], styles["Body"]),
-            Paragraph(row[2], styles["Body"])
+            Paragraph("<b>Severity</b>", styles["Normal"]),
+            Paragraph("<b>CVSS Score</b>", styles["Normal"]),
+            Paragraph("<b>Description</b>", styles["Normal"])
         ])
+        for row in severity_definitions[1:]:
+            formatted_severity_data.append([
+                Paragraph(f"<b>{row[0]}</b>", styles["Body"]),
+                Paragraph(row[1], styles["Body"]),
+                Paragraph(row[2], styles["Body"])
+            ])
 
-    severity_table = Table(formatted_severity_data, colWidths=[100, 80, 320])
-    
-    # Base Style
-    table_style = [
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0070c0")), # Header Blue
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.white), # White grid like image
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('PADDING', (0,0), (-1,-1), 10),
-        
-        # Row 1 (Critical) - Dark Red
-        ('BACKGROUND', (0,1), (0,1), colors.HexColor("#bf0000")), 
-        ('TEXTCOLOR', (0,1), (0,1), colors.white),
-        ('BACKGROUND', (1,1), (-1,1), colors.HexColor("#f2f2f2")), # Light Grey for rest
-        
-        # Row 2 (High) - Red
-        ('BACKGROUND', (0,2), (0,2), colors.HexColor("#ff0000")), 
-        ('TEXTCOLOR', (0,2), (0,2), colors.white),
-        ('BACKGROUND', (1,2), (-1,2), colors.white),
-        
-        # Row 3 (Medium) - Yellow/Gold
-        ('BACKGROUND', (0,3), (0,3), colors.HexColor("#ffc000")),
-        ('TEXTCOLOR', (0,3), (0,3), colors.white),
-        ('BACKGROUND', (1,3), (-1,3), colors.HexColor("#f2f2f2")),
-        
-        # Row 4 (Low) - Green
-        ('BACKGROUND', (0,4), (0,4), colors.HexColor("#00b050")),
-        ('TEXTCOLOR', (0,4), (0,4), colors.white),
-        ('BACKGROUND', (1,4), (-1,4), colors.white),
-        
-        # Row 5 (Informational) - Blue
-        ('BACKGROUND', (0,5), (0,5), colors.HexColor("#00b0f0")),
-        ('TEXTCOLOR', (0,5), (0,5), colors.white),
-        ('BACKGROUND', (1,5), (-1,5), colors.HexColor("#f2f2f2")),
-    ]
-    
-    severity_table.setStyle(TableStyle(table_style))
-    story.append(severity_table)
-    story.append(Spacer(1, 20))
-    story.append(PageBreak())
+        severity_table = Table(formatted_severity_data, colWidths=[100, 80, 320])
+        table_style = [
+            ('BACKGROUND', (0,0), (-1,0), accent),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.white),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('PADDING', (0,0), (-1,-1), 10),
+            ('BACKGROUND', (0,1), (0,1), colors.HexColor("#bf0000")),
+            ('TEXTCOLOR', (0,1), (0,1), colors.white),
+            ('BACKGROUND', (1,1), (-1,1), colors.HexColor("#f2f2f2")),
+            ('BACKGROUND', (0,2), (0,2), colors.HexColor("#ff0000")),
+            ('TEXTCOLOR', (0,2), (0,2), colors.white),
+            ('BACKGROUND', (1,2), (-1,2), colors.white),
+            ('BACKGROUND', (0,3), (0,3), colors.HexColor("#ffc000")),
+            ('TEXTCOLOR', (0,3), (0,3), colors.white),
+            ('BACKGROUND', (1,3), (-1,3), colors.HexColor("#f2f2f2")),
+            ('BACKGROUND', (0,4), (0,4), colors.HexColor("#00b050")),
+            ('TEXTCOLOR', (0,4), (0,4), colors.white),
+            ('BACKGROUND', (1,4), (-1,4), colors.white),
+            ('BACKGROUND', (0,5), (0,5), colors.HexColor("#00b0f0")),
+            ('TEXTCOLOR', (0,5), (0,5), colors.white),
+            ('BACKGROUND', (1,5), (-1,5), colors.HexColor("#f2f2f2")),
+        ]
+        severity_table.setStyle(TableStyle(table_style))
+        story.append(severity_table)
+        story.append(Spacer(1, 20))
+        story.append(PageBreak())
 
 
 
-    # ================= CONCLUSION =================
-    addPara("7. Conclusion", styles["H1"], level=0)
-    story.append(Spacer(1, 10))
-    CONCLUSION_TEXT = """The security assessment of the target application has identified several vulnerabilities ranging across various severity levels. The presence of these findings indicates that while security controls are in place, there are critical areas where the application's security posture can be significantly strengthened.
-<br/><br/>
-Immediate attention should be directed toward remediating the 'Critical' and 'High' severity findings identified in this report. These vulnerabilities represent the most direct paths for potential exploitation and could lead to unauthorized access, data breaches, or service disruptions.
-<br/><br/>
-In addition to technical remediation, it is recommended that the organization adopts a continuous security monitoring and assessment lifecycle. Regular vulnerability scanning, combined with periodic deep-dive manual penetration testing, will ensure that new threats are identified and mitigated before they can be exploited.
-<br/><br/>
+
+    # Conclusion – standard and executive only
+    if report_style != "technical":
+        # ================= CONCLUSION =================
+        addPara("7. Conclusion", styles["H1"], level=0)
+        story.append(Spacer(1, 10))
+        CONCLUSION_TEXT = """The security assessment of the target application has identified several vulnerabilities ranging across various severity levels. The presence of these findings indicates that while security controls are in place, there are critical areas where the application's security posture can be significantly strengthened.<br/><br/>
+Immediate attention should be directed toward remediating the 'Critical' and 'High' severity findings identified in this report. These vulnerabilities represent the most direct paths for potential exploitation and could lead to unauthorized access, data breaches, or service disruptions.<br/><br/>
+In addition to technical remediation, it is recommended that the organization adopts a continuous security monitoring and assessment lifecycle. Regular vulnerability scanning, combined with periodic deep-dive manual penetration testing, will ensure that new threats are identified and mitigated before they can be exploited.<br/><br/>
 All remediation efforts should be followed by a formal validation and re-testing phase to confirm that the implemented fixes effectively address the root causes of the vulnerabilities without introducing side effects. Protecting sensitive data and maintaining user trust remains a paramount objective for the long-term success of the application."""
-    story.append(Paragraph(CONCLUSION_TEXT, styles["Body"]))
-    story.append(Spacer(1, 20))
+        story.append(Paragraph(CONCLUSION_TEXT, styles["Body"]))
+        story.append(Spacer(1, 20))
+
 
     doc.multiBuild(story, onLaterPages=footer)
     buffer.seek(0)
