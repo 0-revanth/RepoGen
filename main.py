@@ -548,5 +548,140 @@ def generate_custom():
     )
 
 
+# ==================== FORGOT / RESET PASSWORD ====================
+
+@app.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if request.method == "POST":
+        email      = request.form.get("email", "").strip()
+        phone      = request.form.get("phone", "").strip().replace(" ", "").replace("-", "")
+        first_name = request.form.get("first_name", "").strip().lower()
+        last_name  = request.form.get("last_name", "").strip().lower()
+
+        # Case-insensitive email match; normalise stored phone too
+        user = User.query.filter(
+            User.email.ilike(email)
+        ).first()
+
+        # Also check phone after normalising stored value
+        if user:
+            stored_phone = user.phone.strip().replace(" ", "").replace("-", "")
+            if stored_phone != phone:
+                user = None
+
+        if user and user.first_name.lower() == first_name and user.last_name.lower() == last_name:
+            # Store verified user ID in session — gate for /reset_password
+            session["reset_user_id"] = user.id
+            return redirect(url_for("reset_password"))
+        else:
+            flash("Details do not match any account. Please try again.", "error")
+
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset_password", methods=["GET", "POST"])
+def reset_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    user_id = session.get("reset_user_id")
+    if not user_id:
+        flash("Please verify your identity first.", "error")
+        return redirect(url_for("forgot_password"))
+
+    if request.method == "POST":
+        new_password     = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if len(new_password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+        elif new_password != confirm_password:
+            flash("Passwords do not match.", "error")
+        else:
+            user = User.query.get(user_id)
+            if user:
+                user.set_password(new_password)
+                db.session.commit()
+                session.pop("reset_user_id", None)
+                flash("Password reset successful! You can now log in.", "success")
+                return redirect(url_for("login"))
+            else:
+                flash("User not found. Please restart the process.", "error")
+                return redirect(url_for("forgot_password"))
+
+    return render_template("reset_password.html")
+
+
+@app.route("/admin/forgot_password", methods=["GET", "POST"])
+def admin_forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('admin') if current_user.is_admin else url_for('index'))
+
+    if request.method == "POST":
+        email      = request.form.get("email", "").strip()
+        phone      = request.form.get("phone", "").strip().replace(" ", "").replace("-", "")
+        first_name = request.form.get("first_name", "").strip().lower()
+        last_name  = request.form.get("last_name", "").strip().lower()
+
+        # Case-insensitive email match restricted to admin accounts
+        user = User.query.filter(
+            User.email.ilike(email),
+            User.is_admin == True
+        ).first()
+
+        # Also check phone after normalising stored value
+        if user:
+            stored_phone = user.phone.strip().replace(" ", "").replace("-", "")
+            if stored_phone != phone:
+                user = None
+
+        if user and user.first_name.lower() == first_name and user.last_name.lower() == last_name:
+            session["reset_user_id"] = user.id
+            return redirect(url_for("admin_reset_password"))
+        else:
+            flash("Details do not match any admin account. Please try again.", "error")
+
+    return render_template("admin_forgot_password.html")
+
+
+@app.route("/admin/reset_password", methods=["GET", "POST"])
+def admin_reset_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('admin') if current_user.is_admin else url_for('index'))
+
+    user_id = session.get("reset_user_id")
+    if not user_id:
+        flash("Please verify your identity first.", "error")
+        return redirect(url_for("admin_forgot_password"))
+
+    # Extra guard: ensure the session user is actually an admin
+    user = User.query.get(user_id)
+    if not user or not user.is_admin:
+        session.pop("reset_user_id", None)
+        flash("Invalid session. Please restart the process.", "error")
+        return redirect(url_for("admin_forgot_password"))
+
+    if request.method == "POST":
+        new_password     = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if len(new_password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+        elif new_password != confirm_password:
+            flash("Passwords do not match.", "error")
+        else:
+            user.set_password(new_password)
+            db.session.commit()
+            session.pop("reset_user_id", None)
+            flash("Admin password reset successful! You can now log in.", "success")
+            return redirect(url_for("admin_login"))
+
+    return render_template("admin_reset_password.html")
+
+
 if __name__ == "__main__":
     app.run(debug=True)
+
